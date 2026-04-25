@@ -8,9 +8,9 @@ env:
 
 on:
   push:
-    branches: ["evaluation-full-scan"]
+    branches: ["evaluation-baseline"]
   pull_request:
-    branches: ["evaluation-full-scan"]
+    branches: ["evaluation-baseline"]
 
 jobs:
   lint-pipeline:
@@ -261,7 +261,7 @@ jobs:
           npm run test:integration
 
       - name: Main gate (coverage >= 35%)
-        if: github.ref == 'refs/heads/evaluation-full-scan'
+        if: github.ref == 'refs/heads/evaluation-baseline'
         continue-on-error: true
         run: npm run test:coverage
 
@@ -326,7 +326,7 @@ jobs:
           npm run test:integration
 
       - name: Main gate (coverage >= 35%)
-        if: github.ref == 'refs/heads/evaluation-full-scan'
+        if: github.ref == 'refs/heads/evaluation-baseline'
         continue-on-error: true
         run: npm run test:coverage
 
@@ -369,7 +369,7 @@ jobs:
   frontend-e2e:
     name: E2E Frontend (Playwright)
     needs: [frontend-tests]
-    if: github.ref == 'refs/heads/evaluation-full-scan' && needs.changes.outputs.web == 'true'
+    if: github.ref == 'refs/heads/evaluation-baseline' && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -402,7 +402,7 @@ jobs:
   framework-metric-tests:
     name: Framework Metric Tests (Inline)
     needs: [frontend-e2e]
-    if: github.ref == 'refs/heads/evaluation-full-scan'
+    if: github.ref == 'refs/heads/evaluation-baseline'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -711,7 +711,7 @@ jobs:
   deploy-backend:
     name: Deploy Backend to Render
     needs: [test-backend]
-    if: github.ref == 'refs/heads/evaluation-full-scan' && needs.changes.outputs.be == 'true'
+    if: github.ref == 'refs/heads/evaluation-baseline' && needs.changes.outputs.be == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -740,7 +740,7 @@ jobs:
   deploy-frontend:
     name: Deploy Frontend to Vercel
     needs: [deploy-backend]
-    if: github.ref == 'refs/heads/evaluation-full-scan' && needs.changes.outputs.web == 'true'
+    if: github.ref == 'refs/heads/evaluation-baseline' && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -773,7 +773,7 @@ jobs:
     # push thường. Tag chỉ được tạo khi mobile-fe có thay đổi thực sự,
     # nên selective build được đảm bảo ở tầng quy trình, không phải qua
     # paths-filter. Đây là ngoại lệ có chủ ý của path-based detection.
-    if: github.ref == 'refs/heads/evaluation-full-scan'
+    if: github.ref == 'refs/heads/evaluation-baseline'
     runs-on: ubuntu-latest
     permissions:
       contents: write
