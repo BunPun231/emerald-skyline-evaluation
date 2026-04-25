@@ -290,14 +290,15 @@ jobs:
             echo "- main: coverage gate from Vitest config (>=35%)"
             echo ""
 
-            if [ -d "coverage" ] && [ -f "coverage/coverage-final.json" ]; then
+            FILE="web-fe/coverage/coverage-summary.json"
+            if [ -f "$FILE" ]; then
               echo "#### Coverage Report"
               echo "| Metric | Coverage |"
               echo "|--------|----------|"
 
               node -e "
                 const fs = require('fs');
-                const coverage = JSON.parse(fs.readFileSync('coverage/coverage-final.json','utf8'));
+                const coverage = JSON.parse(fs.readFileSync('$FILE','utf8'));
                 if (coverage.total) {
                   for (const key of Object.keys(coverage.total)) {
                     console.log(\`| \${key} | \${coverage.total[key].pct}% |\`);
@@ -354,14 +355,15 @@ jobs:
             echo "- main: coverage gate from Vitest config (>=35%)"
             echo ""
 
-            if [ -d "coverage" ] && [ -f "coverage/coverage-final.json" ]; then
+            FILE="mobile-fe/coverage/coverage-summary.json"
+            if [ -f "$FILE" ]; then
               echo "#### Coverage Report"
               echo "| Metric | Coverage |"
               echo "|--------|----------|"
 
               node -e "
                 const fs = require('fs');
-                const coverage = JSON.parse(fs.readFileSync('coverage/coverage-final.json','utf8'));
+                const coverage = JSON.parse(fs.readFileSync('$FILE','utf8'));
                 if (coverage.total) {
                   for (const key of Object.keys(coverage.total)) {
                     console.log(\`| \${key} | \${coverage.total[key].pct}% |\`);
@@ -429,7 +431,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           WORKFLOW_FILE: ci.yml
-          METRIC_DAYS: "30"
+          METRIC_WINDOW_HOURS: "1"
         run: |
           node <<'NODE'
           (async () => {
@@ -439,7 +441,7 @@ jobs:
             const ownerRepo = process.env.GITHUB_REPOSITORY;
             const token = process.env.GITHUB_TOKEN;
             const workflowFile = process.env.WORKFLOW_FILE || 'ci.yml';
-            const days = Number(process.env.METRIC_DAYS || '30');
+            const hours = Number(process.env.METRIC_WINDOW_HOURS || '1');
             const summaryPath = process.env.GITHUB_STEP_SUMMARY;
 
             if (!ownerRepo) throw new Error('Missing GITHUB_REPOSITORY env');
@@ -478,7 +480,7 @@ jobs:
             };
 
             const fetchRuns = async () => {
-              const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+              const cutoff = Date.now() - hours * 60 * 60 * 1000;
               const runs = [];
               let page = 1;
 
@@ -699,14 +701,15 @@ jobs:
             echo "- main: coverage gate from Jest config (>=60%)"
             echo ""
 
-            if [ -f "coverage/coverage-summary.json" ]; then
+            FILE="be/coverage/coverage-summary.json"
+            if [ -f "$FILE" ]; then
               echo "#### Coverage Report"
               echo "| Metric | Coverage |"
               echo "|--------|----------|"
 
               node -e "
                 const fs = require('fs');
-                const summary = JSON.parse(fs.readFileSync('coverage/coverage-summary.json','utf8'));
+                const summary = JSON.parse(fs.readFileSync('$FILE','utf8'));
                 const total = summary.total;
                 for (const key of Object.keys(total)) {
                   console.log(\`| \${key} | \${total[key].pct}% |\`);
