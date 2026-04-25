@@ -436,7 +436,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           WORKFLOW_FILE: ci.yml
-          METRIC_WINDOW_HOURS: "1"
+          METRIC_WINDOW_HOURS: "0.25"
         run: |
           node <<'NODE'
           (async () => {
