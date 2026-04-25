@@ -290,7 +290,7 @@ jobs:
             echo "- main: coverage gate from Vitest config (>=35%)"
             echo ""
 
-            FILE="web-fe/coverage/coverage-summary.json"
+            FILE="coverage/coverage-summary.json"
             if [ -f "$FILE" ]; then
               echo "#### Coverage Report"
               echo "| Metric | Coverage |"
@@ -355,7 +355,10 @@ jobs:
             echo "- main: coverage gate from Vitest config (>=35%)"
             echo ""
 
-            FILE="mobile-fe/coverage/coverage-summary.json"
+            # Sử dụng đường dẫn tương đối tính từ working-directory (mobile-fe)
+            FILE="coverage/coverage-summary.json"
+            
+            echo "Checking file at: $(pwd)/$FILE"
             if [ -f "$FILE" ]; then
               echo "#### Coverage Report"
               echo "| Metric | Coverage |"
@@ -372,6 +375,8 @@ jobs:
               "
             else
               echo "> No coverage report found."
+              echo "Directory content:"
+              ls -R coverage || echo "Coverage folder not found"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
   frontend-e2e:
@@ -701,7 +706,7 @@ jobs:
             echo "- main: coverage gate from Jest config (>=60%)"
             echo ""
 
-            FILE="be/coverage/coverage-summary.json"
+            FILE="coverage/coverage-summary.json"
             if [ -f "$FILE" ]; then
               echo "#### Coverage Report"
               echo "| Metric | Coverage |"
