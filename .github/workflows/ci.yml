@@ -617,7 +617,7 @@ jobs:
               '',
               `- Repository: ${ownerRepo}`,
               `- Workflow: ${workflowFile}`,
-              `- Analysis window: ${days} days`,
+              `- Analysis window: ${hours} hours`,
               `- Workflow runs analyzed: ${runs.length}`,
               `- Deploy jobs analyzed: ${deployJobs.length}`,
               '',
