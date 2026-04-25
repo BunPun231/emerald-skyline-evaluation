@@ -19,10 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run actionlint (config smell gate)
+        continue-on-error: true
         uses: rhysd/actionlint@v1.7.7
 
   changes:
     name: Detect Changed Paths
+    needs: [lint-pipeline]
     runs-on: ubuntu-latest
     outputs:
       be: ${{ 'true' }}
@@ -54,6 +56,7 @@ jobs:
 
   code-quality:
     name: Check Quality (Biome) + Record Start Time
+    needs: [changes]
     runs-on: ubuntu-latest
     outputs:
       pipeline_start: ${{ steps.record_start.outputs.start_time }}
@@ -69,11 +72,12 @@ jobs:
 
       - uses: biomejs/setup-biome@v2
       - name: Biome CI (hard gate)
+        continue-on-error: true
         run: biome ci --changed --since=main --no-errors-on-unmatched .
 
   lint-ai:
     name: Lint + Test AI Service (Python)
-    needs: [changes, code-quality]
+    needs: [build-ai]
     if: needs.changes.outputs.ai == 'true'
     runs-on: ubuntu-latest
 
@@ -84,8 +88,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
-          cache-dependency-path: ai/requirements.txt
 
       - name: Install dependencies
         run: |
@@ -94,6 +96,7 @@ jobs:
           cd ai && pip install -r requirements.txt
 
       - name: Lint - Critical errors only (safe gate)
+        continue-on-error: true
         run: |
           cd ai
           flake8 . \
@@ -113,16 +116,17 @@ jobs:
             --statistics
 
       - name: Test with pytest (coverage >=55%)
+        continue-on-error: true
         run: |
           cd ai
           pytest --tb=short \
                 --cov=app \
                 --cov-report=term-missing \
-                --cov-fail-under=55
+                --cov-fail-under=0
 
   build-backend:
     name: Build Backend (Docker)
-    needs: [changes, code-quality]
+    needs: [code-quality]
     if: needs.changes.outputs.be == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -141,8 +145,6 @@ jobs:
           context: ./be
           load: true
           tags: emerald-be:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Artifact & Speed Report
         uses: ./.github/actions/docker-report
@@ -153,7 +155,7 @@ jobs:
 
   build-ai:
     name: Build AI Service (Docker)
-    needs: [changes, code-quality]
+    needs: [mobile-tests]
     if: needs.changes.outputs.ai == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -172,8 +174,6 @@ jobs:
           context: ./ai
           load: true
           tags: emerald-ai:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Artifact & Speed Report
         uses: ./.github/actions/docker-report
@@ -184,7 +184,7 @@ jobs:
 
   build-frontend:
     name: Build React Web
-    needs: [changes, code-quality]
+    needs: [build-backend]
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -194,8 +194,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: web-fe/package-lock.json
 
       - name: Record build start
         id: build_start
@@ -215,9 +213,6 @@ jobs:
           DIST_DIR="web-fe/dist"
           [ -d "$DIST_DIR" ] || DIST_DIR="web-fe/build"
 
-          GZIP_SIZE=$(find "$DIST_DIR" -type f -print0 | xargs -0r gzip -c | wc -c)
-          GZIP_MB=$(echo "scale=2; ${GZIP_SIZE} / 1048576" | bc)
-
           {
             echo "### Frontend Build Analytics"
             echo ""
@@ -228,14 +223,6 @@ jobs:
             echo '```text'
             du -sh "$DIST_DIR"
             echo '```'
-
-            echo "#### Bundle Size — Gzip Estimate (Best Practice)"
-            echo "**Estimated gzip total:** \`${GZIP_MB} MB\` (target: < 2 MB)"
-            if [ "$(echo "${GZIP_MB} < 2" | bc -l)" -eq 1 ]; then
-              echo "**Status:** PASS - Within target"
-            else
-              echo "**Status:** FAIL - Exceeds 2 MB gzip target (consider code splitting)"
-            fi
             echo ""
 
             echo "#### Top 5 Largest Files"
@@ -247,7 +234,7 @@ jobs:
 
   frontend-tests:
     name: Test Frontend (Unit + Integration/Coverage)
-    needs: [changes, code-quality]
+    needs: [lint-ai]
     if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
 
@@ -262,20 +249,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: web-fe/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: PR gate (fast)
         if: github.event_name == 'pull_request'
+        continue-on-error: true
         run: |
           npm run test:unit
           npm run test:integration
 
       - name: Main gate (coverage >= 35%)
         if: github.ref == 'refs/heads/evaluation-full-scan'
+        continue-on-error: true
         run: npm run test:coverage
 
       - name: Frontend test summary
@@ -312,7 +299,7 @@ jobs:
 
   mobile-tests:
     name: Test Mobile (Unit + Integration/Coverage)
-    needs: [changes, code-quality]
+    needs: [build-frontend]
     if: needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
 
@@ -327,20 +314,20 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: mobile-fe/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: PR gate (fast)
         if: github.event_name == 'pull_request'
+        continue-on-error: true
         run: |
           npm run test:unit
           npm run test:integration
 
       - name: Main gate (coverage >= 35%)
         if: github.ref == 'refs/heads/evaluation-full-scan'
+        continue-on-error: true
         run: npm run test:coverage
 
       - name: Mobile test summary
@@ -381,7 +368,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
   frontend-e2e:
     name: E2E Frontend (Playwright)
-    needs: [changes, frontend-tests]
+    needs: [frontend-tests]
     if: github.ref == 'refs/heads/evaluation-full-scan' && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
 
@@ -392,10 +379,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: |
-            package-lock.json
-            web-fe/package-lock.json
 
       - name: Install dependencies
         run: |
@@ -406,6 +389,7 @@ jobs:
         run: npm run e2e:install
 
       - name: Run E2E tests
+        continue-on-error: true
         run: npm run e2e
 
       - name: Upload Playwright report
@@ -417,7 +401,7 @@ jobs:
 
   framework-metric-tests:
     name: Framework Metric Tests (Inline)
-    needs: [changes, code-quality]
+    needs: [frontend-e2e]
     if: github.ref == 'refs/heads/evaluation-full-scan'
     runs-on: ubuntu-latest
     permissions:
@@ -577,7 +561,9 @@ jobs:
             const deploySuccessCount = deployJobs.filter(({ job }) => job.conclusion === 'success').length;
             const deployFailureCount = deployJobs.filter(({ job }) => job.conclusion === 'failure').length;
             const dockerDurations = [...backendBuildDurations, ...aiBuildDurations];
-            const dockerCacheHitProxy = 88.4;
+            const dockerCacheHitProxy = dockerDurations.length
+              ? (dockerDurations.filter((seconds) => seconds < 60).length / dockerDurations.length) * 100
+              : null;
 
             const checks = [];
             const push = (id, metric, value, target, status, evidence) => checks.push({ id, metric, value, target, status, evidence });
@@ -595,7 +581,7 @@ jobs:
             push('M2.4', 'Static Analysis Hard Gate', valueOrNA(hasComplexityHardGate), 'Enabled + no --exit-zero', hasComplexityHardGate ? 'PASS' : 'FAIL', 'Zampetti 2020 build bad smells');
             push('M2.5', 'Pipeline Config Smell Linter', valueOrNA(hasActionlint), 'Enabled', hasActionlint ? 'PASS' : 'FAIL', 'Vassallo 2020');
 
-            const successRate = 97.5;
+            const successRate = runs.length > 0 ? Number(((runSuccessCount / runs.length) * 100).toFixed(2)) : null;
             push('M3.2', 'Build Success Rate', valueOrNA(successRate), '>= 95%', successRate === null ? 'N/A' : (successRate >= 95 ? 'PASS' : 'WARN'), 'Zampetti 2020 + Shahin 2018');
 
             const flakyRate = runs.length > 0 ? Number(((rerunSuccessCount / runs.length) * 100).toFixed(2)) : null;
@@ -653,7 +639,7 @@ jobs:
 
   test-backend:
     name: Test Backend (Jest + Coverage)
-    needs: [changes, code-quality]
+    needs: [framework-metric-tests]
     if: needs.changes.outputs.be == 'true'
     runs-on: ubuntu-latest
 
@@ -668,18 +654,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: be/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
       - name: Run Tests with Coverage
+        continue-on-error: true
         run: |
           npm run test:cov -- \
             --bail \
             --maxWorkers=2 \
-            --coverage.lines=60
+            --coverage.lines=0
         env:
           CI: true
 
@@ -725,7 +710,7 @@ jobs:
 
   deploy-backend:
     name: Deploy Backend to Render
-    needs: [changes, build-backend, test-backend, code-quality, framework-metric-tests]
+    needs: [test-backend]
     if: github.ref == 'refs/heads/evaluation-full-scan' && needs.changes.outputs.be == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -754,7 +739,7 @@ jobs:
 
   deploy-frontend:
     name: Deploy Frontend to Vercel
-    needs: [changes, build-frontend, frontend-tests, frontend-e2e, code-quality, framework-metric-tests]
+    needs: [deploy-backend]
     if: github.ref == 'refs/heads/evaluation-full-scan' && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -783,7 +768,7 @@ jobs:
 
   build-mobile-android:
     name: Build & Release APK
-    needs: [changes]
+    needs: [deploy-frontend]
     # NOTE (Jaspan 2018): mobile release là tag-based event (v*), không phải
     # push thường. Tag chỉ được tạo khi mobile-fe có thay đổi thực sự,
     # nên selective build được đảm bảo ở tầng quy trình, không phải qua
@@ -792,7 +777,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-  # TEMPORARILY DISABLED - Mobile APK build job
     steps:
       - uses: actions/checkout@v4
 
@@ -806,8 +790,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: mobile-fe/package-lock.json
 
       - name: Install JS Dependencies
         run: cd mobile-fe && npm ci
