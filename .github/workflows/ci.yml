@@ -8,10 +8,9 @@ env:
 
 on:
   push:
-    branches: ["main"]
-    tags: ["v*"]
+    branches: ["evaluation-full-scan"]
   pull_request:
-    branches: ["main"]
+    branches: ["evaluation-full-scan"]
 
 jobs:
   lint-pipeline:
@@ -26,10 +25,10 @@ jobs:
     name: Detect Changed Paths
     runs-on: ubuntu-latest
     outputs:
-      be: ${{ steps.filter.outputs.be }}
-      web: ${{ steps.filter.outputs.web }}
-      mobile: ${{ steps.filter.outputs.mobile }}
-      ai: ${{ steps.filter.outputs.ai }}
+      be: ${{ 'true' }}
+      web: ${{ 'true' }}
+      mobile: ${{ 'true' }}
+      ai: ${{ 'true' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -276,7 +275,7 @@ jobs:
           npm run test:integration
 
       - name: Main gate (coverage >= 35%)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/evaluation-full-scan'
         run: npm run test:coverage
 
       - name: Frontend test summary
@@ -321,7 +320,7 @@ jobs:
           npm run test:integration
 
       - name: Main gate (coverage >= 35%)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/evaluation-full-scan'
         run: npm run test:coverage
 
       - name: Mobile test summary
@@ -338,7 +337,7 @@ jobs:
   frontend-e2e:
     name: E2E Frontend (Playwright)
     needs: [changes, frontend-tests]
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.web == 'true'
+    if: github.ref == 'refs/heads/evaluation-full-scan' && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -374,7 +373,7 @@ jobs:
   framework-metric-tests:
     name: Framework Metric Tests (Inline)
     needs: [changes, code-quality]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/evaluation-full-scan'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -676,14 +675,16 @@ jobs:
   deploy-backend:
     name: Deploy Backend to Render
     needs: [changes, build-backend, test-backend, code-quality, framework-metric-tests]
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.be == 'true'
+    if: github.ref == 'refs/heads/evaluation-full-scan' && needs.changes.outputs.be == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Trigger Render Deploy Hook
         id: deploy
-        run: curl -fsSL -X GET ${{ secrets.RENDER_BE_DEPLOY_HOOK }}
+        run: |
+          echo "Mocking deployment..."
+          sleep 7
 
       - name: Record DORA Metrics
         if: always()
@@ -703,14 +704,16 @@ jobs:
   deploy-frontend:
     name: Deploy Frontend to Vercel
     needs: [changes, build-frontend, frontend-tests, frontend-e2e, code-quality, framework-metric-tests]
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.web == 'true'
+    if: github.ref == 'refs/heads/evaluation-full-scan' && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Trigger Vercel Deploy Hook
         id: deploy
-        run: curl -fsSL -X GET ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          echo "Mocking deployment..."
+          sleep 7
 
       - name: Record DORA Metrics
         if: always()
@@ -727,14 +730,14 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"text\": \"*Frontend deploy FAILED* on \`${{ github.ref_name }}\`\nCommit: \`${{ github.sha }}\`\nActor: ${{ github.actor }}\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
 
-  release-mobile:
+  build-mobile-android:
     name: Build & Release APK
     needs: [changes]
     # NOTE (Jaspan 2018): mobile release là tag-based event (v*), không phải
     # push thường. Tag chỉ được tạo khi mobile-fe có thay đổi thực sự,
     # nên selective build được đảm bảo ở tầng quy trình, không phải qua
     # paths-filter. Đây là ngoại lệ có chủ ý của path-based detection.
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/evaluation-full-scan'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -803,6 +806,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: mobile-fe/android/app/build/outputs/apk/debug/app-debug.apk
